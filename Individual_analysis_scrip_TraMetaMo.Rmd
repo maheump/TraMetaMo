@@ -1,0 +1,170 @@
+Analysis script for TraMetaMo
+========================================================
+Author: Maxime Maheu [(C) Copyright 2014]
+
+First, import the data file.
+
+```{r}
+##############################################
+# Paste the directory of the file you want to analyze :
+directory <- "/Users/Maxime/Google Drive/Productions scientifiques/Supra-total SFG resection/TraMetaMo_FAVRE_14-3_F44R_1_DATA.dat"
+##############################################
+# Choose the task to analyze :
+
+# 1 => Working memory task,
+# 2 => Long term memory task,
+# 3 => Temporal perception task,
+# 4 => Visual perception task,
+# 5 => Attentional task,
+# 6 => Motor task.
+task = 1
+
+########################################################
+subject = 1
+
+initial_data <- read.table(directory, header = T)
+initial_data <- subset(initial_data, TYPE_I_TASK == task) # SUBJECT_NUMBER == subject
+initial_data[initial_data == "NaN"] <- NA
+data <- na.omit(initial_data)
+delete_trials = ((nrow(initial_data) - nrow(data))/nrow(initial_data))*100
+attach(data)
+
+if (names(initial_data)[8] == "TYPE_I_CORRECTION" & names(initial_data)[9] == "TYPE_I_LABEL") {
+  names(data)[8] <- "TYPE_I_LABEL"
+  names(data)[9] <- "TYPE_I_CORRECTION"}
+TYPE_I_LABEL = vector()
+if (names(data)[8] != "TYPE_I_LABEL") {
+  for (trial in seq(1, nrow(data))) {
+    if (TYPE_I_DISPLAY[trial] == 1 & TYPE_I_ANSWER[trial] == 1) {TYPE_I_LABEL[trial] = 1}
+    if (TYPE_I_DISPLAY[trial] == 0 & TYPE_I_ANSWER[trial] == 1) {TYPE_I_LABEL[trial] = 2}
+    if (TYPE_I_DISPLAY[trial] == 1 & TYPE_I_ANSWER[trial] == 0) {TYPE_I_LABEL[trial] = 3}
+    if (TYPE_I_DISPLAY[trial] == 0 & TYPE_I_ANSWER[trial] == 0) {TYPE_I_LABEL[trial] = 4}}
+  data["TYPE_I_LABEL"] <- NA
+  data$TYPE_I_LABEL <- TYPE_I_LABEL}
+rm(TYPE_I_LABEL)
+
+attach(data)
+summary <- summary(data)
+
+task_code = matrix(c(1,2,3,4,5,6), ncol = 1, byrow = TRUE)
+task_list = matrix(c("Working memory task", "Long term memory task", "Temporal perception task", "Visual perception task", "Attentional task", "Motor task"), ncol = 1, byrow = TRUE)
+tasks  = matrix(c(task_code, task_list), ncol = 2)
+task_name = tasks[task, 2]
+```
+
+Second of all, get the type I results.
+
+```{r}
+typeI_mean_performance = mean(TYPE_I_DIFFICULTY)
+typeI_sd_performance = sd(TYPE_I_DIFFICULTY)
+typeI_mean_accuracy = mean(TYPE_I_CORRECTION)*100 # Must be around 71%
+typeI_sd_accuracy = sd(TYPE_I_CORRECTION)*100
+typeI_mean_RT = mean(TYPE_I_RT)
+typeI_sd_RT = sd(TYPE_I_RT)
+
+paste("Niveau de difficulte moyen : ", round(typeI_mean_performance, 2), " (", round(typeI_sd_performance, 2), ")", sep = "")
+paste("Performance moyenne : ", round(typeI_mean_accuracy), "%", sep = "")
+paste("Temps de reaction perceptif moyen : ", round(typeI_mean_RT), " ms (", round(typeI_sd_RT, 2), " ms)", sep = "")
+```
+
+Then, get the type II results.
+
+```{r}
+typeII_mean_confidence = mean(TYPE_II_ANSWER)
+typeII_sd_confidence = sd(TYPE_II_ANSWER)
+typeII_mean_RT = mean(TYPE_II_RT)
+typeII_sd_RT = sd(TYPE_II_RT)
+
+paste("Niveau de confiance moyen : ", round(typeII_mean_confidence, 2), " (", round(typeII_sd_confidence, 2), ")", sep = "")
+paste("Temps de reaction metacognitif moyen : ", round(typeII_mean_RT, 2), " ms (", round(typeII_sd_RT, 2), " ms)", sep = "")
+```
+
+Then, compute values coming from the second order signal detection theory.
+
+```{r}
+table <- table(factor(TYPE_I_LABEL, levels = 1:4), factor(TYPE_II_ANSWER, levels = 1:6))
+typeI_table <- table + 0.5
+
+p_hit = vector()
+p_false_alarm = vector()
+p_hit[1] = 0
+p_false_alarm[1] = 0
+i = 2
+for (confidence in seq(6, 1, by = -1)) {
+  p_hit[i] = c((typeI_table[1, confidence]/(sum(typeI_table[1,]) + sum(typeI_table[3,]))) + p_hit[i - 1])
+  p_false_alarm[i] = c((typeI_table[2, confidence]/(sum(typeI_table[2,]) + sum(typeI_table[4,]))) + p_false_alarm[i - 1])
+  i = i + 1}
+rm(confidence)
+i = max(TYPE_II_ANSWER) + 2
+for (confidence in seq(1, 6)) {
+  p_hit[i] = c((typeI_table[3, confidence]/(sum(typeI_table[1,]) + sum(typeI_table[3,]))) + p_hit[i - 1])
+    p_false_alarm[i] = c((typeI_table[4, confidence]/(sum(typeI_table[2,]) + sum(typeI_table[4,]))) + p_false_alarm[i - 1])
+  i = i + 1}
+rm(confidence)
+
+p_hits = sum(typeI_table[1,])/(sum(typeI_table[1,]) + sum(typeI_table[3,]))
+p_false_alarms = sum(typeI_table[2,])/(sum(typeI_table[2,]) + sum(typeI_table[4,]))
+d_prime = qnorm(p_hits, 0, 1) - qnorm(p_false_alarms, 0, 1) # *(1/sqrt(2))
+paste("d' : ", round(d_prime, 2), sep = "")
+
+hit = table[1, 1:6]
+false_alarm = table[2, 1:6]
+miss = table[3, 1:6]
+correct_reject = table[4, 1:6]
+
+H = hit + correct_reject + 0.5
+FA = false_alarm + miss + 0.5
+
+pH <- vector()
+pFA <- vector()
+for (confidence in seq(1, 6)) {
+  pH[confidence] = c(H[confidence] / sum(H))
+  pFA[confidence] = c(FA[confidence] / sum(FA))}
+rm(confidence)
+
+pH_cum <- vector()
+pFA_cum <- vector()
+pH_cum[1] = 0
+pFA_cum[1] = 0
+for (confidence in seq(2, 7)) {
+  pH_cum[confidence] = c(pH[8 - confidence] + pH_cum[confidence - 1])
+  pFA_cum[confidence] = c(pFA[8 - confidence] + pFA_cum[confidence - 1])}
+rm(confidence)
+
+ka <- vector()
+kb <- vector()
+for (confidence in seq(2, 4)) {
+  ka[confidence - 1] = c((pH_cum[confidence] - pFA_cum[confidence - 1])^2 - (pH_cum[confidence - 1] - pFA_cum[confidence])^2)}
+rm(confidence)
+for (confidence in seq(4, 7)) {
+  kb[confidence - 4] = c((pH_cum[confidence] - pFA_cum[confidence - 1])^2 - (pH_cum[confidence - 1] - pFA_cum[confidence])^2)}
+rm(confidence)
+ka = sum(ka)
+kb = sum(kb)
+
+Aroc = (1/2) + ((1/4)*ka) + ((1/4)*kb)
+```
+
+Plot type I and type II reaction times according to confidence levels.
+
+```{r fig.width=7, fig.height=7}
+RT_I_x_confidence <- tapply(TYPE_I_RT, as.factor(TYPE_II_ANSWER), mean)
+RT_II_x_confidence <- tapply(TYPE_II_RT, as.factor(TYPE_II_ANSWER), mean)
+
+plot(x = sort(unique(TYPE_II_ANSWER)), y = RT_I_x_confidence, type = "b", col = "red", xlim = c(1, 6), ylim = c(0, max(TYPE_I_RT, TYPE_II_RT)), main = task_name, xlab = "Confidence", ylab = "Reaction time (ms)", frame.plot = FALSE)
+lines(x = sort(unique(TYPE_II_ANSWER)), y = RT_II_x_confidence, type = "b", col = "blue")
+legend("topright", c("Type I", "Type II"), lty = 1, col=c('red', 'blue'), box.lty = 0)
+```
+
+Plot type II ROC curve.
+
+```{r fig.width=7, fig.height=7}
+plot(x = pFA_cum, y = pH_cum, type = "l", col = "black", xlim = c(0,1), ylim = c(0,1), main = task_name, xlab = "P (confidence | incorrect)", ylab = "P (confidence | correct)", frame.plot = FALSE)
+polygon(x = c(pFA_cum), y = c(pH_cum), border = "black", col="grey")
+lines(x = p_false_alarm, y = p_hit, lty = 2)
+lines(x = c(0,1), y = c (0,1))
+text(x = 0.8, y = 0.1, substitute(A["ROC"] == this, list(this = round(Aroc, 2))) , adj=0)
+legend("topleft", c("Type I", "Type II"), lty = c(2, 1), box.lty = 0)
+if (delete_trials != 0) {
+  paste("!!! ", round(delete_trials, 2), "% des trials non analysables", sep = "")}
+```
