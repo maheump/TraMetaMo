@@ -104,7 +104,7 @@ rm(confidence)
 
 p_hits = sum(typeI_table[1,])/(sum(typeI_table[1,]) + sum(typeI_table[3,]))
 p_false_alarms = sum(typeI_table[2,])/(sum(typeI_table[2,]) + sum(typeI_table[4,]))
-d_prime = qnorm(p_hits, 0, 1) - qnorm(p_false_alarms, 0, 1) # *(1/sqrt(2))
+d_prime = (1/sqrt(2))*(qnorm(p_hits, 0, 1) - qnorm(p_false_alarms, 0, 1))
 paste("d' : ", round(d_prime, 2), sep = "")
 
 hit = table[1, 1:6]
