@@ -1,4 +1,4 @@
-TraMetaMo_project
+TraMetaMo
 ================
 
 Measurement of metacognitive monitoring in 6 different cognitive domains:
